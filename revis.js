@@ -377,18 +377,17 @@ class CodeGen {
     }
 
     join(il1, il2) {
+        var last = il1[il1.length - 1]
         var next = il2[0]
         /*
           il1: array of instructions, ending with "Match"
           il2: array of instructions, also ending with "Match"
          */
         for (var instr of il1) {
-            if (instr.type === Jump || instr.type === Split) {
-                if (instr.x.type === Match) {
-                    instr.x = next
-                }
+            if ((instr.type === Jump || instr.type === Split) && instr.x === last) {
+                instr.x = next
             }
-            if (instr.type === Split && instr.y.type === Match) {
+            if (instr.type === Split && instr.y === last) {
                 instr.y = next
             }
         }
@@ -400,7 +399,6 @@ class CodeGen {
     }
 
     term(tree) {
-        console.log(tree);
         if (tree.numChildren == 1) {
             // Either character, dot, or special.
             var code = []
@@ -594,8 +592,8 @@ function codeToString(instructions)
         case NRange:
             str += "    "
             str += instr.type == Range ? "range" : "nrange"
-            for (var i = 0; i < instr.x.length; i++) {
-                str += " " + instr.x[i] + " " + instr.y[i]
+            for (var j = 0; j < instr.x.length; j++) {
+                str += " " + instr.x[j] + " " + instr.y[j]
             }
             break
         }
@@ -609,9 +607,10 @@ class ReVis {
         var parser = new Parser(expr)
         this.tree = parser.parse()
         console.log(this.tree.toString())
+        console.log('---------------')
         var generator = new CodeGen()
         this.code = generator.generate(this.tree)
-        console.log(this.code)
+        console.log(codeToString(this.code))
     }
 }
 
