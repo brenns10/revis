@@ -602,6 +602,13 @@ function codeToString(instructions)
     return str
 }
 
+class Thread {
+    constructor(instr, saves) {
+        this.instr = instr
+        this.saves = saves
+    }
+}
+
 class ReVis {
     constructor(expr) {
         var parser = new Parser(expr)
@@ -611,6 +618,93 @@ class ReVis {
         var generator = new CodeGen()
         this.code = generator.generate(this.tree)
         console.log(codeToString(this.code))
+    }
+
+    addthread(threads, instr, saves, sp) {
+        if (instr.lastidx == sp) return;
+        instr.lastidx = sp
+
+        switch (instr.type) {
+        case Jump:
+            this.addthread(threads, instr.x, saves, sp)
+            break
+        case Split:
+            var newsaved = saves.slice()
+            this.addthread(threads, instr.x, saves, sp)
+            this.addthread(threads, instr.y, newsaved, sp)
+            break;
+        case Save:
+            saves[instr.s] = sp
+            this.addthread(threads, this.code[this.code.indexOf(instr) + 1], saves, sp)
+            break
+        default:
+            threads.push(new Thread(instr, saves))
+            break
+        }
+    }
+
+    range(instr, c) {
+        var rv = false;
+        for (var i = 0; i < instr.x.length; i++) {
+            if (instr.x[i] <= c && c <= instr.y[i]) {
+                rv = true;
+                break
+            }
+        }
+        if (instr.type == NRange) {
+            rv = !rv
+        }
+        return rv
+    }
+
+    execute(input) {
+        var curr = [];
+        var next = [];
+        var matchidx = -1
+        var saves = null
+
+        for (var instr of this.code) {
+            instr.lastidx = -1 // I can do this!  Wheeeeee!
+        }
+
+        this.addthread(curr, this.code[0], [], 0)
+
+        for (var sp = 0; curr.length != 0; sp++) {
+            loop:
+            for (var t of curr) {
+                switch (t.instr.type) {
+                case Char:
+                    if (input[sp] !== t.instr.c) {
+                        break
+                    }
+                    this.addthread(next, this.code[this.code.indexOf(t.instr) + 1], t.saves, sp+1)
+                    break
+                case Any:
+                    this.addthread(next, this.code[this.code.indexOf(t.instr) + 1], t.saves, sp+1)
+                    break
+                case Range:
+                case NRange:
+                    if (!this.range(t.instr, input[sp])) {
+                        break;
+                    }
+                    this.addthread(next, this.code[this.code.indexOf(t.instr) + 1], t.saves, sp+1)
+                    break
+                case Match:
+                    matchidx = sp
+                    saves = t.saves
+                    continue loop
+                    break
+                }
+            }
+            curr = next
+            next = []
+        }
+
+        var cap = []
+        for (var i = 0; i < saves.length; i += 2) {
+            cap.push(input.slice(saves[i], saves[i+1]))
+        }
+        return {"matchidx": matchidx, "captures": cap}
     }
 }
 
